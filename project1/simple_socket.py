@@ -1,3 +1,4 @@
+
 #!/usr/bin/python
 import ssl
 import socket
@@ -7,10 +8,11 @@ import sys
 SSL_ENABLE = False
 PORT = 27993
 SSL_PORT = 27994
-HELLO_MSG = 'cs5700f2015 HELLO %s\n'
-SOLUTION_MSG = 'cs5700f2015 %d\n'
+HEAD = 'cs5700%s2015 '
+HELLO_MSG = 'HELLO %s\n'
+SOLUTION_MSG = '%d\n'
 ERROR_MSG = 'Unknown_Husky_ID'
-FLAG_START_POS = len('cs5700f2015 ')
+FLAG_START_POS = len(HEAD)
 
 
 '''
@@ -22,12 +24,23 @@ The command of launching this app:
 
 
 def main():
+    global HEAD
+    global HELLO_MSG
+    global SOLUTION_MSG
+    global ERROR_MSG
+    global FLAG_START_POS
+    global SSL_PORT, PORT
+    global SSL_ENABLE
+
     if len(sys.argv) < 3:
         print "Not enough argument\n"
         return
     
+    if '-t' in sys.argv: HEAD = HEAD % 'spring'
+    else: HEAD = HEAD % 'f'
+
     host = sys.argv[-2]
-    HELLO_MSG = HELLO_MSG % sys.argv[-1]
+    HELLO_MSG = HEAD + (HELLO_MSG % sys.argv[-1])
 
     if '-s' in sys.argv:
         SSL_ENABLE = True
@@ -47,6 +60,7 @@ def main():
     my_socket.sendall(HELLO_MSG)
 
     while True:
+
         msg = my_socket.recv(1024)
 
         if ERROR_MSG in msg:
@@ -56,7 +70,7 @@ def main():
         if "BYE" in msg:
             print msg[FLAG_START_POS:FLAG_START_POS+64]
             return
-        
+        print msg
         num1, op, num2 = msg.split()[-3:]
         sol = 0
         if op == "+": sol = int(num1) + int(num2)
@@ -64,7 +78,7 @@ def main():
         elif op == "*": sol = int(num1) * int(num2)
         else: sol = int(num1) / int(num2)
 
-        my_socket.sendall(SOLUTION_MSG % sol)
+        my_socket.sendall(HEAD + SOLUTION_MSG % sol)
 
 
 
