@@ -8,7 +8,7 @@ import sys
 SSL_ENABLE = False
 PORT = 27993
 SSL_PORT = 27994
-HEAD = 'cs5700%s2015 '
+HEAD = 'cs5700fall2015 '
 HELLO_MSG = 'HELLO %s\n'
 SOLUTION_MSG = '%d\n'
 ERROR_MSG = 'Unknown_Husky_ID'
@@ -32,16 +32,11 @@ def main():
     global SSL_PORT, PORT
     global SSL_ENABLE
 
-    if len(sys.argv) < 3:
-        print "Not enough argument\n"
-        return
-    
-    if '-t' in sys.argv: HEAD = HEAD % 'spring'
-    else: HEAD = HEAD % 'f'
+    if len(sys.argv) < 3: return
 
     host = sys.argv[-2]
     HELLO_MSG = HEAD + (HELLO_MSG % sys.argv[-1])
-
+    
     if '-s' in sys.argv:
         SSL_ENABLE = True
         PORT = SSL_PORT
@@ -55,22 +50,18 @@ def main():
     try:
         my_socket.connect((host, PORT))
     except Exception, e:
-        raise e
+        print e
+        return
 
     my_socket.sendall(HELLO_MSG)
-
+    secret_flag = ""
     while True:
-
         msg = my_socket.recv(1024)
-
-        if ERROR_MSG in msg:
-            print ERROR_MSG
-            return
         
         if "BYE" in msg:
-            print msg[FLAG_START_POS:FLAG_START_POS+64]
-            return
-        print msg
+            secret_flag = msg[FLAG_START_POS:FLAG_START_POS+64]
+            break
+
         num1, op, num2 = msg.split()[-3:]
         sol = 0
         if op == "+": sol = int(num1) + int(num2)
@@ -80,7 +71,9 @@ def main():
 
         my_socket.sendall(HEAD + SOLUTION_MSG % sol)
 
+    my_socket.close()
 
+    print secret_flag
 
 if __name__ == '__main__':
     main()
