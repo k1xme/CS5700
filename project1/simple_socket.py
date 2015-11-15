@@ -54,8 +54,10 @@ def main():
         return
 
     my_socket.sendall(HELLO_MSG)
+
     secret_flag = ""
     while True:
+
         msg = my_socket.recv(1024)
         
         if "BYE" in msg:
