@@ -7,7 +7,7 @@ $ns color 2 Blue
 
 #Read rate of cbr and variant of tcp from the command line
 #Check availbility of inputs
-if {$argc != 2) {
+if {$argc != 2} {
         puts "The script requires 2 arguments"
         puts "The first parameter is the type of the queue discpline"
         puts "The second parameter is the variant of the tcp"
@@ -15,11 +15,10 @@ if {$argc != 2) {
 }
 
 #Open the trace file
-set trace_name exp3/
-append trace_name [lindex [split [lindex $argv 1] /] 1]
-append trace_name _
-append trace_name [lindex $argv 0]
-append trace_name .tr
+set trace_name exp3_trace/
+set tcp_variant [lindex [split [lindex $argv 1] /] 1]
+append trace_name $tcp_variant
+append trace_name _[lindex $argv 0].tr
 set nf [open $trace_name w]
 $ns trace-all $nf
 
@@ -41,16 +40,25 @@ set n4 [$ns node]
 set n5 [$ns node]
 set n6 [$ns node]
 
+if {[lindex argv 0] == "DropTail"} {
+	$ns duplex-link $n1 $n2 10Mb 10ms DropTail
+	$ns duplex-link $n2 $n5 10Mb 10ms DropTail
+	$ns duplex-link $n2 $n3 10Mb 10ms DropTail
+	$ns duplex-link $n3 $n4 10Mb 10ms DropTail
+	$ns duplex-link $n3 $n6 10Mb 10ms DropTail
+} else {
+	$ns duplex-link $n1 $n2 10Mb 10ms RED
+	$ns duplex-link $n2 $n5 10Mb 10ms RED
+	$ns duplex-link $n2 $n3 10Mb 10ms RED
+	$ns duplex-link $n3 $n4 10Mb 10ms RED
+	$ns duplex-link $n3 $n6 10Mb 10ms RED
+}
 #Create links between the nodes using given queuing discpline
-$ns duplex-link $n1 $n2 10Mb 10ms [lindex argv 0]
-$ns duplex-link $n2 $n5 10Mb 10ms [lindex argv 0]
-$ns duplex-link $n2 $n3 10Mb 10ms [lindex argv 0]
-$ns duplex-link $n3 $n4 10Mb 10ms [lindex argv 0]
-$ns duplex-link $n3 $n6 10Mb 10ms [lindex argv 0]
+
 
 #Set CBR agent.
 set udp [new Agent/UDP]
-$ns attach-agent $ns5 $udp
+$ns attach-agent $n5 $udp
 set cbr [new Application/Traffic/CBR]
 $cbr attach-agent $udp
 
@@ -61,7 +69,11 @@ $ns attach-agent $n6 $null
 set tcp [new Agent/[lindex $argv 1]]
 $ns attach-agent $n1 $tcp
 
-set sink [new Agent/TCPSink]
+if {$tcp_variant != "Reno"} {
+	set sink [new Agent/TCPSink/Sack1]	
+} else {
+	set sink [new Agent/TCPSink]
+}
 $ns attach-agent $n4 $sink
 
 set ftp [new Application/FTP]
@@ -70,12 +82,12 @@ $ftp attach-agent $tcp
 $ns connect $udp $null
 $udp set fid_ 1
 $ns connect $tcp $sink
-$tcp0 set fid_ 2
+$tcp set fid_ 2
 
 $ns at 0.0 "$ftp start"
-$ns at 2.0 "$cbr start"
-$ns at 5.0 "$ftp stop"
-$ns at 5.0 "$cbr stop"
-$ns at 5.5 "finish"
+$ns at 3.0 "$cbr start"
+$ns at 10.0 "$ftp stop"
+$ns at 10.0 "$cbr stop"
+$ns at 15.0 "finish"
 
 $ns run

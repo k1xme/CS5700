@@ -53,7 +53,7 @@ $ns duplex-link $n2 $n5 10Mb 10ms DropTail
 set udp [new Agent/UDP]
 $ns attach-agent $n1 $udp
 # Create a CBR traffic source and attach it to udp0
-set val [lindex $argv 0]
+set val [lindex $argv 0]Mb
 set cbr [new Application/Traffic/CBR]
 $cbr set rate_ $val
 $cbr attach-agent $udp
@@ -69,7 +69,9 @@ set sink [new Agent/TCPSink]
 $ns attach-agent $n3 $sink
 
 $ns connect $udp $null
+$udp set fid_ 1
 $ns connect $tcp $sink
+$tcp set fid_ 2
 
 set ftp [new Application/FTP]
 $ftp attach-agent $tcp
@@ -77,10 +79,10 @@ $ftp attach-agent $tcp
 #Schedule events for the CBR agents
 $ns at 0.0 "$cbr start"
 $ns at 0.0 "$ftp start"
-$ns at 5.0 "$ftp stop"
-$ns at 5.0 "$cbr stop"
+$ns at 10.0 "$ftp stop"
+$ns at 10.0 "$cbr stop"
 #Call the finish procedure after 5 seconds of simulation time
-$ns at 5.5 "finish"
+$ns at 15.0 "finish"
 
 #Run the simulation
 $ns run

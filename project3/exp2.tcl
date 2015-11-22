@@ -17,13 +17,10 @@ if {$argc != 3} {
 }
 
 #Open the trace file
-set trace_name exp2/
-append trace_name [lindex [split [lindex $argv 1] /] 1]
-append trace_name _
-append trace_name [lindex [split [lindex $argv 2] /] 1]
-append trace_name _cbr_
-append trace_name [lindex $argv 0]
-append trace_name .tr
+set trace_name exp2_trace/
+append trace_name [lindex [split [lindex $argv 1] /] 1]_
+append trace_name [lindex [split [lindex $argv 2] /] 1]_cbr_
+append trace_name [lindex $argv 0].tr
 set nf [open $trace_name w]
 $ns trace-all $nf
 
@@ -54,9 +51,9 @@ $ns duplex-link $n3 $n6 10Mb 10ms DropTail
 
 #Set CBR agent.
 set udp [new Agent/UDP]
-$ns attach-agent $ns2 $udp
+$ns attach-agent $n2 $udp
 set cbr [new Application/Traffic/CBR]
-$cbr set rate_ [lindex $argv 0]
+$cbr set rate_ [lindex $argv 0]Mb
 $cbr attach-agent $udp
 
 #Create a Null agent (a traffic sink) and attach it to node n3
@@ -79,10 +76,10 @@ set ftp1 [new Application/FTP]
 $ftp0 attach-agent $tcp0
 $ftp1 attach-agent $tcp1
 
-#Create a SINK agent (a TCP sink) and attach it to the node n4
+#Create a SINK agent (a TCP sink) and attach it to the node n4 and n6
 set sink0 [new Agent/TCPSink]
 $ns attach-agent $n4 $sink0
-set sink1 [new Agetn/TCPSink]
+set sink1 [new Agent/TCPSink]
 $ns attach-agent $n6 $sink1
 
 #Connect the traffic sources with the traffic sink
@@ -94,14 +91,14 @@ $ns connect $tcp1 $sink1
 $tcp1 set fid_ 2
 
 #Schedule events for the CBR agents
-$ns at 0.0 "$cbr0 start"
+$ns at 0.0 "$cbr start"
 $ns at 0.0 "$ftp0 start"
 $ns at 0.0 "$ftp1 start"
 $ns at 10.0 "$ftp0 stop"
 $ns at 10.0 "$ftp1 stop"
-$ns at 10.0 "$cbr0 stop"
+$ns at 10.0 "$cbr stop"
 #Call the finish procedure after 5 seconds of simulation time
-$ns at 10.5 "finish"
+$ns at 15.0 "finish"
 
 #Run the simulation
 $ns run
