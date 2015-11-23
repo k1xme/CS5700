@@ -52,15 +52,14 @@ $ns duplex-link $n2 $n5 10Mb 10ms DropTail
 #Create a UDP agent and attach it to node n2
 set udp [new Agent/UDP]
 $ns attach-agent $n1 $udp
+#Create a Null agent (a traffic sink) and attach it to node n3
+set null [new Agent/Null]
+$ns attach-agent $n2 $null
 # Create a CBR traffic source and attach it to udp0
 set val [lindex $argv 0]Mb
 set cbr [new Application/Traffic/CBR]
 $cbr set rate_ $val
 $cbr attach-agent $udp
-
-#Create a Null agent (a traffic sink) and attach it to node n3
-set null [new Agent/Null]
-$ns attach-agent $n2 $null
 
 set tcp [new Agent/[lindex $argv 1]]
 $ns attach-agent $n0 $tcp
@@ -82,7 +81,7 @@ $ns at 0.0 "$ftp start"
 $ns at 10.0 "$ftp stop"
 $ns at 10.0 "$cbr stop"
 #Call the finish procedure after 5 seconds of simulation time
-$ns at 15.0 "finish"
+$ns at 10.5 "finish"
 
 #Run the simulation
 $ns run
