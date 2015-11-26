@@ -1,11 +1,6 @@
 #Create a simulator object
 set ns [new Simulator]
 
-#Set color for flows
-$ns color 1 Green
-$ns color 2 Blue
-$ns color 3 Red
-
 #Read rate of cbr and variant of tcp from the command line
 #Check availbility of inputs
 if {$argc != 3} {
@@ -68,7 +63,7 @@ append type2 [lindex $argv 2]
 set tcp0 [new $type1]
 set tcp1 [new $type2]
 $ns attach-agent $n1 $tcp0
-$ns attach-agent $n1 $tcp1
+$ns attach-agent $n5 $tcp1
 
 # Create 2 FTP and attach them to tcp0 and tcp1
 set ftp0 [new Application/FTP]

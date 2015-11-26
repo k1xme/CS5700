@@ -1,10 +1,6 @@
 #Create a simulator object
 set ns [new Simulator]
 
-#Set color for flows
-$ns color 1 Green
-$ns color 2 Blue
-
 #Read rate of cbr and variant of tcp from the command line
 #Check availbility of inputs
 if {$argc != 2} {
@@ -17,7 +13,7 @@ if {$argc != 2} {
 #Open the trace file
 set trace_name exp1_trace/
 if {[lindex $argv 1] == "TCP"} {
-        append trace_name Tahoe_
+        append trace_name Tahoe_cbr_
 } else {
         append trace_name [lindex [split [lindex $argv 1] /] 1]_cbr_
 }
