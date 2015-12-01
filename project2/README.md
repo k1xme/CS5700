@@ -1,6 +1,6 @@
 ###Members:
-Kexi Long 001729512
-Jian Li 001731714
+- Kexi Long 001729512
+- Jian Li 001731714
 
 ###Library Denpendencies:
 - beautifulsoup4
