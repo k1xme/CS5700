@@ -1,12 +1,14 @@
-import html
-import xml
 import socket
 import sys
 import re
-import logging
+import argparse
 import select
 from bs4 import BeautifulSoup
-from collections import deque
+
+
+parser = argparse.ArgumentParser() 
+parser.add_argument('username', type=str, help='username') 
+parser.add_argument('password', type=str, help='password') 
 
 #HTTP client settings
 MAX_READ_SIZE = 4096
@@ -15,13 +17,11 @@ STATUS_OK = b'200'
 STATUS_REDIRECT = b'301'
 STATUS_NOTFOUND = b'404'
 STATUS_SERVERERR = b'500'
+STATUS_FORBIDDEN = b'403'
 
-#Logger settings
-fh = .logging.FileHandler('crawler.log')
-FORMAT = '%(asctime)-15s - [%(log_type)s][%(worker)d][%(funcName)s]%(message)s'
-logging.basicConfig(format=FORMAT)
-logger = logging.getLogger('KexiCrawler')
-logger.addHandler(fh)
+
+lrule = re.compile(b'Location: (\w+:\/\/.{0,128})')
+drule = re.compile('\/fakebook\/.{0,40}')
 
 class Worker(object):
     """
@@ -78,30 +78,18 @@ class Worker(object):
                 self.write_pos += n
                 self.write_buf = self.write_buf[n:]
             except Exception as e:
-                print("[Exception][IN handle_write][Worker%d] %s" % (self.no, e))
                 self.handle_error(e)
-                # self.state = 2
-                # self.write_pos = -1
-                # self.write_buf = None
-                # self.error = e
         else:
             self._on_write_done()
 
     def handle_read(self):
         try:
-            # print("last_read_len %d" % len(data))
             data = self.socket.recv(MAX_READ_SIZE)
             self.read_buf.extend(data)
-            # if len(data) == 0:
-            #     self._on_read_done()
-            if self.read_buf.endswith(b'\r\n\r\n') or self.read_buf.endswith(b'</html>'):
+            if len(data) == 0 or self.read_buf.endswith(b'\r\n\r\n') or self.read_buf.endswith(b'</html>'):
                 self._on_read_done()
         except Exception as e:
-            print("[Exception][IN handle_read][Worker%d] %s" % (self.no, e))
             self.handle_error(e)
-            # self.state = 2
-            # self.read_buf = None
-            # self.error = e
 
     def reconnect(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -112,22 +100,20 @@ class Worker(object):
         self.socket.setblocking(False)
 
     def _on_write_done(self):
-        # print("Sent request %s" % self.__repr__())   
         self.state = 1
         self.write_buf = None
         self.write_pos = -1
 
     def _on_read_done(self):
         self.state = 0
-        # self.last_read_len = -1
         # Extract links from HTML and put them into frontier.
         if self.read_callback:
-            self.read_callback(self.read_buf)
+            self.read_callback(self.target_url, self.read_buf)
         
         self.read_buf = None
         self.read_callback = None
-        # self.socket.close()
-        # self.reconnect()
+        self.socket.close()
+        self.reconnect()
 
     def handle_error(self, err):
         self.socket.close()
@@ -148,7 +134,6 @@ class Worker(object):
 
 
 class Crawler(object):
-    """docstring for Crawler"""
     request = "GET {{url}} HTTP/1.1\r\n" + \
               "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" + \
               "Host: {host}\r\n" + \
@@ -157,78 +142,84 @@ class Crawler(object):
               "User-Agent: KexiCrawler\r\n\r\n"
     
     def __init__(self, host, port, user=None, passwd=None, conn_num=100):
-        # self.cookie = self.login(user, passwd)
-        self.found_secret_flag = False
         self.flags = set()
         self.host = host
         self.port = port
-        self.to_visit = deque(["/fakebook/"])
+        self.to_visit = set()
         self.visited = set()
         self.cookie = {}
-        self.workers = [Worker(host, port, i) for i in range(1)]
-
+        self.workers = [Worker(host, port, i) for i in range(100)]
+        self.user = user
+        self.passwd = passwd
     
     def start(self):
-        cookie = ''
-        for key, value in cookie.iteritems():
-            cookie += key + '=' + value
+        retry = 0
+        while not self.login(self.user, self.passwd) and retry < 5:
+            retry += 1
+        if retry >= 5:
+            print("Username/Password incorrect")
+            return
+
+        cookie = "csrftoken=" + self.cookie['csrftoken'] +'; sessionid=' + self.cookie['sessionid']
 
         self.request = self.request.format(host=self.host, cookie=cookie)
-        while not self.found_secret_flag:
+        while len(self.flags) < 5:
             rlist = [worker for worker in self.workers if worker.wants_read()]
             wlist = [worker for worker in self.workers if worker.wants_write()]
-            # xlist = [worker for worker in self.workers if worker.gets_error()]        
             
-            # print(rlist)
             readables, writables, exceptions = select.select(rlist, wlist, [], 3)
 
-            # print(readables, writables)
             if readables: self.process_read(readables)
             if writables: self.process_write(writables)
+
+            # print('to_visit: %d\nflags: %d\nvisited: %d' % (len(self.to_visit), len(self.flags), len(self.visited)))
+
+        for flag in self.flags: print(flag)
 
     def process_write(self, writables):
         for worker in writables:
             if worker.write_pos >= 0:
                 worker.handle_write()
             elif self.to_visit:
-                target_url = self.to_visit.popleft()
-                worker.write(target_url, bytearray(self.request.format(url=target_url), 'utf8'))
+                target_url = self.to_visit.pop()
+                worker.write(target_url, bytearray(self.request.format(url=target_url), 'ascii'))
 
     def process_read(self, readables):
         for worker in readables:
             if not worker.read_buf:
-                worker.read(self.process_read)
+                worker.read(self.process_response)
             else:
                 worker.handle_read()
 
-    def process_response(self, resp):
-        # print(resp)
+    def process_response(self, target_url, resp):
         status_code = self.get_status_code(resp)
-        if not status_code or status_code == STATUS_NOTFOUND:
-            #TODO: log the url and discard.
-            return
+        if not status_code or status_code == STATUS_NOTFOUND or status_code == STATUS_FORBIDDEN:
+            #Discard this url.
+            self.visited.add(target_url)
         elif status_code == STATUS_REDIRECT:
-            #TODO: log the url and get `Location` in the response and append it into `to_visit`.
-            #      Add the requested url into `visited`
+            durl = lrule.search(resp).group(1)
+            if durl not in self.to_visit and durl not in self.visited: self.to_visit.add(durl)
+            self.visited.add(target_url)
         elif status_code == STATUS_SERVERERR:
-            #TODO: log and discard.
+            #Re-try this url.
+            if target_url not in self.to_visit and target_url not in self.visited: self.to_visit.add(target_url)
+
         elif status_code == STATUS_OK:
-            if self.find_secret_flag(resp): return
+            self.find_secret_flag(resp)
+            self.visited.add(target_url)
 
             html = BeautifulSoup(resp, 'html.parser')
+            
             for tag in html.find_all('a'):
-                if hasattr(tag, 'href') and self.is_in_domain(tag.href) and tag.href not in self.visited:
-                    self.to_visit.append(tag.href)
+                if tag['href'] and self.is_in_domain(tag['href']) and tag['href'] not in self.visited and tag['href'] not in self.to_visit:
+                    self.to_visit.add(tag['href'])
     
     def find_secret_flag(self, resp):
         flagRule = re.compile(b'FLAG: (.{0,64})')
         flag = flagRule.search(resp)
-        if flag:
-            print(flag.group(1).decode())
-            self.found_secret_flag = True
-            return True
-        return False
+        if flag: self.flags.add(flag.group(1).decode())
     
+
     def login(self, username, passwd):
         login_request = "POST http://fring.ccs.neu.edu/accounts/login/ HTTP/1.1\r\nHost: fring.ccs.neu.edu\r\nConnection: close\r\nContent-Length: {length}\r\nUser-Agent: kexi\r\nContent-Type: application/x-www-form-urlencoded\r\nCookie: csrftoken={csrftoken}; sessionid={sid}\r\n\r\n"
         get_login_page = b"GET /accounts/login/ HTTP/1.1\r\nHost: fring.ccs.neu.edu\r\nConnection: Keep-Alive\r\nUser-Agent: kexi\r\n\r\n"
@@ -238,24 +229,25 @@ class Crawler(object):
         s.sendall(get_login_page)
         resp = s.recv(MAX_READ_SIZE)
 
-        csrfRule = re.compile(b'csrftoken=\w+')
-        sidRule = re.compile(b'sessionid=\w+')
-        csrftoken = csrfRule.search(resp).group(0).split(b'=')[1]
-        sessionid = sidRule.search(resp).group(0).split(b'=')[1]
+        csrfRule = re.compile(b'csrftoken=(\w+)')
+        sidRule = re.compile(b'sessionid=(\w+)')
+        csrftoken = csrfRule.search(resp).group(1)
+        sessionid = sidRule.search(resp).group(1)
         
         formdata = "username={username}&password={passwd}&csrfmiddlewaretoken={csrf}&next=/fakebook/".format(username=username, passwd=passwd, csrf=csrftoken.decode())
         login_request = login_request.format(length=len(formdata), csrftoken=csrftoken.decode(), sid=sessionid.decode('ascii'))
 
         s.sendall(bytes(login_request+formdata, 'ascii'))
         resp = s.recv(MAX_READ_SIZE)
-        
+        s.close()
+
         if self.get_status_code(resp) == b'302':
-            print("[Crawler]Logged in")
+            sessionid = sidRule.search(resp).group(1)
             self.cookie['sessionid'] = sessionid.decode()
             self.cookie['csrftoken'] = csrftoken.decode()
+            self.to_visit.add(lrule.search(resp).group(1).decode())
             return True
         
-        print("[Crawler]Login failed")
         return False
     
     def get_status_code(self, resp):
@@ -270,14 +262,18 @@ class Crawler(object):
         """
             Returns True if `url` is a relative path in the domain.
         """
-        drule = re.compile('\/fakebook\/.{0,40}')
         return drule.match(url) is not None
+
+    def __repr__(self):
+        return "[Crawler]"
+
 
 if __name__ == '__main__':
     host = "fring.ccs.neu.edu"
     port = 80
-    #TODO: accept `username` and `passwd` from argvs.
-    crawler = Crawler(host, port)
-    # crawler.login('001729512', 'UPMYZ0BB')
-    # crawler.start()
+    args = parser.parse_args() 
+    username = args.username
+    password = args.password
+    crawler = Crawler(host, port, username, password)
+    crawler.start()
     
