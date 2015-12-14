@@ -33,7 +33,7 @@ def main():
     global SSL_ENABLE
 
     if len(sys.argv) < 3:
-        print "Not Enough Arguments"
+        print("Not Enough Arguments")
         return
 
     host = sys.argv[-2]
