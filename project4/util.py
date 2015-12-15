@@ -2,9 +2,13 @@ import socket
 
 def get_local_ip_port():
     s = socket.socket()
-    s.connect(('www.baidu.com', 80))
-    ip, port = s.getsockname()
-    s.close()
+    try:
+        s.connect(('www.baidu.com', 80))
+        ip, port = s.getsockname()
+    except Exception as e:
+        raise e
+    finally:
+        s.close()
     return ip
 
 def checksum(msg):
@@ -22,3 +26,6 @@ def checksum(msg):
     s = ~s & 0xffff
      
     return s
+
+def make_HTTP_GET(self, url):
+    pass
