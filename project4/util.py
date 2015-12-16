@@ -1,4 +1,8 @@
 import socket
+request = "GET {url} HTTP/1.0\r\n" + \
+          "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n" + \
+          "Connection: close\r\n" + \
+          "User-Agent: KexiCrawler\r\n\r\n"
 
 def get_local_ip_port():
     s = socket.socket()
@@ -27,5 +31,5 @@ def checksum(msg):
      
     return s
 
-def make_HTTP_GET(self, url):
-    pass
+def make_HTTP_GET(url):
+    return request.format(url=url)
