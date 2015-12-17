@@ -1,0 +1,8 @@
+import sys
+from rawsocket import download
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        sys.exit('Illegal arguments')
+    url = sys.argv[-1]
+    download(url)
